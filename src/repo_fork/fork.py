@@ -1,4 +1,5 @@
 import os
+import random
 import time
 from typing import Optional
 
@@ -6,6 +7,7 @@ import click
 from dotenv import load_dotenv
 from github import Auth, Github, Repository, UnknownObjectException
 from rich import print
+from rich.progress import track
 
 
 def warning(msg: str) -> None:
@@ -13,8 +15,10 @@ def warning(msg: str) -> None:
 
 
 def sleep(seconds: int) -> None:
-    print(f"Sleeping for {seconds} seconds")
-    time.sleep(seconds)
+    if seconds <= 0:
+        return
+    for _ in track(range(seconds), description="Waiting..."):
+        time.sleep(1)
 
 
 def maybe_sleep(g: Github, action: Optional[str] = None) -> None:
@@ -28,7 +32,7 @@ def maybe_sleep(g: Github, action: Optional[str] = None) -> None:
         sleep(retry_after)
     elif rl.core.remaining < 10:
         sleep(sleep_time)
-    elif action == "fork":
+    elif action == "forked":
         sleep(15)
 
 
@@ -119,8 +123,11 @@ def user_clone(
 ) -> str:
     g = get_github()
     source_user = g.get_user(user)
+    print("Getting repositories :star:")
     repositories = source_user.get_repos()
-    for repo in filter_repos(repositories, include_private, include_forks, include_dot_github):
+    repos = list(filter_repos(repositories, include_private, include_forks, include_dot_github))
+    random.shuffle(repos)
+    for repo in repos:
         kind, repo = fork_or_sync(repo.full_name, to_location, branch=None)
         print(f"{kind}: {repo.full_name}")
         maybe_sleep(g, kind)
