@@ -17,6 +17,12 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+dependencies = [
+    "click>=8.1.8",
+    "pygithub>=2.5.0",
+    "python-dotenv>=1.0.1",
+    "rich>=13.9.4",
+]
 
 [project.urls]
 Homepage = "https://willf.github.io/repo-fork/"
@@ -32,13 +38,12 @@ dev = [
     "mypy>=0.991",
     "pytest-cov>=4.0.0",
     "ruff>=0.9.2",
-
+    "ipython>=8.18.1",
 ]
 
 [build-system]
 requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
-
 
 
 [tool.mypy]
@@ -80,7 +85,8 @@ select = [
     # mccabe
     "C90",
     # pycodestyle
-    "E", "W",
+    "E",
+    "W",
     # pyflakes
     "F",
     # pygrep-hooks
@@ -111,3 +117,6 @@ skip_empty = true
 [tool.coverage.run]
 branch = true
 source = ["src"]
+
+[project.scripts]
+super-fork = "repo_fork.fork:main"
