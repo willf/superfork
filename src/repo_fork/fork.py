@@ -1,11 +1,12 @@
 import os
 import random
 import time
-from typing import Optional, Tuple
+from collections.abc import Generator
+from typing import Optional
 
 import click
 from dotenv import load_dotenv
-from github import Auth, Github, Repository, UnknownObjectException
+from github import Auth, AuthenticatedUser, Github, Repository, UnknownObjectException
 from rich import print
 from rich.progress import track
 
@@ -27,7 +28,7 @@ def maybe_sleep(g: Github, action: Optional[str] = None) -> None:
     # convert reset to number of seconds remaining between now and reset
     current_unix_time = time.time()
     reset_unix_time = int(rl.raw_headers["x-ratelimit-reset"])
-    sleep_time = reset_unix_time - current_unix_time
+    sleep_time = int(reset_unix_time - current_unix_time)
     if retry_after > 0:
         sleep(retry_after)
     elif rl.core.remaining < 10:
@@ -36,7 +37,7 @@ def maybe_sleep(g: Github, action: Optional[str] = None) -> None:
         sleep(15)
 
 
-def get_repo(nwo: str, g: Optional[Github]) -> Repository:
+def get_repo(nwo: str, g: Optional[Github]) -> Optional[Repository.Repository]:
     if not g:
         g = get_github()
     try:
@@ -45,7 +46,7 @@ def get_repo(nwo: str, g: Optional[Github]) -> Repository:
         return None
 
 
-def sync(repo: Repository, branch: Optional[str] = None) -> dict:
+def sync(repo: Repository.Repository, branch: Optional[str] = None) -> dict:
     """
     :calls: `POST /repos/{owner}/{repo}/merge-upstream <https://docs.github.com/en/rest/branches/branches#sync-a-fork-branch-with-the-upstream-repository>`_
     :param branch: string
@@ -56,25 +57,46 @@ def sync(repo: Repository, branch: Optional[str] = None) -> dict:
         branch = repo.default_branch
     post_parameters = {"branch": branch}
     headers, data = repo._requester.requestJsonAndCheck("POST", f"{repo.url}/merge-upstream", input=post_parameters)
-    return data
+    return dict(data)
+
+
+class RepositoryNotFoundException(Exception):
+    def __init__(self, repo: str) -> None:
+        super().__init__(f"Repository '{repo}' not found")
+
+
+class NotAuthenticatedUserError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("Not authenticated user")
+
+
+class GitHubTokenNotFoundError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__("GITHUB_TOKEN not found")
 
 
 def get_github(token: Optional[str] = None) -> Github:
     if not token:
         load_dotenv()
         token = os.getenv("GITHUB_TOKEN")
+    if not token:
+        raise GitHubTokenNotFoundError()
     auth = Auth.Token(token)
     g = Github(auth=auth)
     return g
 
 
-def get_user(g: Optional[Github] = None, token: Optional[str] = None) -> str:
+def get_authed_user(g: Optional[Github] = None, token: Optional[str] = None) -> AuthenticatedUser.AuthenticatedUser:
     if not g:
-        g = get_github(token)
-    return g.get_user()
+        raise NotAuthenticatedUserError()
+    user = g.get_user()
+    if type(user) is AuthenticatedUser.AuthenticatedUser:
+        return user
+    else:
+        raise NotAuthenticatedUserError()
 
 
-def fork_or_sync(from_repo: str, to_location: str, syncing: bool, branch: Optional[str] = None) -> Tuple[str, str]:
+def fork_or_sync(from_repo: str, to_location: str, syncing: bool, branch: Optional[str] = None) -> tuple[str, str]:
     """ """
     (from_user, from_name) = from_repo.split("/")
     parts = to_location.split("/")
@@ -84,27 +106,34 @@ def fork_or_sync(from_repo: str, to_location: str, syncing: bool, branch: Option
     else:
         warning("igorning destination repository name")
     g = get_github()
-    user = get_user(g)
+    user = get_authed_user(g)
     user_name = user.login
-    from_repo = get_repo(from_repo, g)
-    if not from_repo:
-        raise UnknownObjectException(from_repo)
-    to_location = get_repo(to_location, g)
-    if to_location:
+    retrived_from_repo = get_repo(from_repo, g)
+    if not retrived_from_repo:
+        raise RepositoryNotFoundException(from_repo)
+    retrieve_to_location = get_repo(to_location, g)
+    if retrieve_to_location:
         if syncing:
-            sync(to_location, branch)
+            sync(retrieve_to_location, branch)
             return ("synced", to_location)
         else:
             return ("exists", to_location)
     else:
         if to_user == user_name:
-            return ("forked", user.create_fork(from_repo))
+            fork = user.create_fork(retrived_from_repo)
+            return ("forked", fork.full_name)
         else:
             org = g.get_organization(to_user)
-            return ("forked", org.create_fork(from_repo))
+            fork = org.create_fork(retrived_from_repo)
+            return ("forked", fork.name)
 
 
-def filter_repos(repos, include_private: bool = True, include_forks: bool = False, include_dot_github: bool = False):
+def filter_repos(
+    repos: list[Repository.Repository],
+    include_private: bool = True,
+    include_forks: bool = False,
+    include_dot_github: bool = False,
+) -> Generator[Repository.Repository, None, None]:
     for repo in repos:
         if repo.fork and not include_forks:
             continue
@@ -125,7 +154,7 @@ def user_clone(
     include_forks: bool = False,
     include_dot_github: bool = False,
     syncing: bool = True,
-) -> str:
+) -> None:
     g = get_github()
     source_user = g.get_user(user)
     repositories = []
@@ -135,8 +164,8 @@ def user_clone(
     repos = list(filter_repos(repositories, include_private, include_forks, include_dot_github))
     random.shuffle(repos)
     for repo in repos:
-        kind, repo = fork_or_sync(repo.full_name, to_location, syncing, branch=None)
-        print(f"{kind}: {repo.full_name}")
+        kind, repo = fork_or_sync(repo.full_name, to_location, syncing, branch=None)  # type: ignore  # noqa: PGH003
+        print(f"{kind}: {repo}")
         maybe_sleep(g, kind)
         if include_issues:
             print("TODO: clone issues")
@@ -169,7 +198,15 @@ def user_clone(
 )
 @click.argument("to")
 @click.argument("source", nargs=-1)
-def main(to, source, sync, include_issues, include_private, include_forks, include_dot_github):
+def main(
+    to: str,
+    source: str,
+    sync: bool,
+    include_issues: bool,
+    include_private: bool,
+    include_forks: bool,
+    include_dot_github: bool,
+) -> None:
     """
     [TO]: destination user or organization\n
     [SOURCE]: source user or organization, or repository (one or more)
@@ -184,7 +221,7 @@ def main(to, source, sync, include_issues, include_private, include_forks, inclu
     for frommy in source:
         if "/" in frommy:
             kind, repo = fork_or_sync(frommy, to, sync, branch=None)
-            print(f"{kind}: {repo.full_name}")
+            print(f"{kind}: {repo}")
             maybe_sleep(g, kind)
             if include_issues:
                 print("TODO: clone issues")
