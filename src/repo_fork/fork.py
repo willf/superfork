@@ -123,8 +123,10 @@ def user_clone(
 ) -> str:
     g = get_github()
     source_user = g.get_user(user)
-    print("Getting repositories :star:")
-    repositories = source_user.get_repos()
+    repositories = []
+    for repo in track(source_user.get_repos(), description="Fetching repositories..."):
+        repositories.append(repo)
+    print(f"Found {len(repositories)} repositories")
     repos = list(filter_repos(repositories, include_private, include_forks, include_dot_github))
     random.shuffle(repos)
     for repo in repos:
