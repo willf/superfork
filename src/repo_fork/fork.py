@@ -1,7 +1,7 @@
 import os
 import random
 import time
-from typing import Optional
+from typing import Optional, Tuple
 
 import click
 from dotenv import load_dotenv
@@ -74,7 +74,7 @@ def get_user(g: Optional[Github] = None, token: Optional[str] = None) -> str:
     return g.get_user()
 
 
-def fork_or_sync(from_repo: str, to_location: str, branch: Optional[str] = None) -> Repository:
+def fork_or_sync(from_repo: str, to_location: str, syncing: bool, branch: Optional[str] = None) -> Tuple[str, str]:
     """ """
     (from_user, from_name) = from_repo.split("/")
     parts = to_location.split("/")
@@ -91,8 +91,11 @@ def fork_or_sync(from_repo: str, to_location: str, branch: Optional[str] = None)
         raise UnknownObjectException(from_repo)
     to_location = get_repo(to_location, g)
     if to_location:
-        sync(to_location, branch)
-        return ("synced", to_location)
+        if syncing:
+            sync(to_location, branch)
+            return ("synced", to_location)
+        else:
+            return ("exists", to_location)
     else:
         if to_user == user_name:
             return ("forked", user.create_fork(from_repo))
@@ -117,9 +120,11 @@ def filter_repos(repos, include_private: bool = True, include_forks: bool = Fals
 def user_clone(
     user: str,
     to_location: str,
+    include_issues: bool = False,
     include_private: bool = True,
     include_forks: bool = False,
     include_dot_github: bool = False,
+    syncing: bool = True,
 ) -> str:
     g = get_github()
     source_user = g.get_user(user)
@@ -130,29 +135,61 @@ def user_clone(
     repos = list(filter_repos(repositories, include_private, include_forks, include_dot_github))
     random.shuffle(repos)
     for repo in repos:
-        kind, repo = fork_or_sync(repo.full_name, to_location, branch=None)
+        kind, repo = fork_or_sync(repo.full_name, to_location, syncing, branch=None)
         print(f"{kind}: {repo.full_name}")
         maybe_sleep(g, kind)
+        if include_issues:
+            print("TODO: clone issues")
 
 
 # I want a command line interface for this code
 # super-clone --include-private --include-forks --include-dot-github <to> <from>+
 # use click for the cli
 @click.command()
-@click.option("--include-private", is_flag=True, default=False)
-@click.option("--include-forks", is_flag=True, default=False)
-@click.option("--include-dot-github", is_flag=True, default=False)
+@click.option(
+    "--include-issues",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Include issues, pull requests, and comments",
+)
+@click.option(
+    "--sync/--no-sync", is_flag=True, default=True, show_default=True, help="Sync when repository already exists"
+)
+@click.option("--include-private", is_flag=True, default=False, show_default=True, help="Include private repositories")
+@click.option(
+    "--include-forks",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Include repositories which were originally forked",
+)
+@click.option(
+    "--include-dot-github", is_flag=True, default=False, show_default=True, help="Include .github repository if found"
+)
 @click.argument("to")
-@click.argument("dest", nargs=-1)
-def main(to, dest, include_private, include_forks, include_dot_github):
+@click.argument("source", nargs=-1)
+def main(to, source, sync, include_issues, include_private, include_forks, include_dot_github):
+    """
+    [TO]: destination user or organization\n
+    [SOURCE]: source user or organization, or repository (one or more)
+
+    A valid GITHUB_TOKEN must be set in the environment,
+    or in a .env file in the current directory,
+    or in a .env file in the user's home directory.
+
+    To get a GITHUB_TOKEN, see https://docs.github.com/en/authentication
+    """
     g = get_github()
-    for frommy in dest:
+    for frommy in source:
         if "/" in frommy:
-            kind, repo = fork_or_sync(frommy, to, branch=None)
+            kind, repo = fork_or_sync(frommy, to, sync, branch=None)
             print(f"{kind}: {repo.full_name}")
             maybe_sleep(g, kind)
+            if include_issues:
+                print("TODO: clone issues")
         else:
-            user_clone(frommy, to, include_private, include_forks, include_dot_github)
+            user_clone(frommy, to, include_issues, include_private, include_forks, include_dot_github, sync)
 
 
 if __name__ == "__main__":
