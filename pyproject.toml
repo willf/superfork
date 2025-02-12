@@ -119,4 +119,4 @@ branch = true
 source = ["src"]
 
 [project.scripts]
-super-fork = "repo_fork.fork:main"
+superfork = "superfork.fork:main"
