@@ -828,7 +828,7 @@ wheels = [
 ]
 
 [[package]]
-name = "repo-fork"
+name = "superfork"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [

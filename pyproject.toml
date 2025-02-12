@@ -1,7 +1,7 @@
 [project]
-name = "repo-fork"
+name = "superfork"
 version = "0.0.1"
-description = "Fork or sync a repo on GitHub to GitHub"
+description = "Fork or sync a repo, or clone a user or org on GitHub to GitHub"
 authors = [{ name = "Will Fitzgerald", email = "will.fitzgerald@pobox.com" }]
 readme = "README.md"
 keywords = ['python']
@@ -25,9 +25,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://willf.github.io/repo-fork/"
-Repository = "https://github.com/willf/repo-fork"
-Documentation = "https://willf.github.io/repo-fork/"
+Homepage = "https://willf.github.io/superfork/"
+Repository = "https://github.com/willf/superfork"
+Documentation = "https://willf.github.io/superfork/"
 
 [dependency-groups]
 dev = [
