@@ -32,6 +32,18 @@ You can specify multiple users or organizations to sync
 uv run superfork mona willf willf2 willf/superfork
 ```
 
+Note: To avoid overwhelming GitHub (and thus hitting API limits), this program will only attempt to fork a repo every 30 seconds. If you are syncing a large number of repos, it may take a while to complete.
+
+THe command has the following options:
+
+- `--include-issues`: Include issues and comments (not working yet)
+- `--sync`: Sync when repository already exists (default)
+- `--no-sync`: Don't sync when repository already exists
+- `--include-private`: Include private repositories (of course, you need to be able to _access_ the private repos)
+- `--include-forks`: Include repositories which were originally forked (default: don't include)
+- `--include-dot-github`: Include .github repository if found (default: don't include)
+- `--dry-run`: Don't actually do anything, but check status of repositories
+
 ## Installation
 
 1. Install [uv](https://github.com/astral-sh/uv)
