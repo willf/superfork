@@ -87,7 +87,7 @@ def get_authed_user(g: Optional[Github] = None, token: Optional[str] = None) -> 
 
 def fork_or_sync(
     from_repo: str, to_location: str, syncing: bool, dry_run: bool, branch: Optional[str] = None
-) -> tuple[str, Repository.Repository, Repository.Repository]:
+) -> tuple[str, Repository.Repository, Optional[Repository.Repository]]:
     """ """
     (from_user, from_name) = from_repo.split("/")
     parts = to_location.split("/")
@@ -117,7 +117,7 @@ def fork_or_sync(
         if to_user == user_name:
             try:
                 fork = user.create_fork(retrived_from_repo)
-                return ("forked", retrived_from_repo, fork)
+                return ("forked", retrived_from_repo, fork)  # noqa: TRY300
             except Exception as e:
                 warning(f"Failed to fork {from_repo} to {to_location}: {e}")
                 sleep_until_reset(g)
@@ -127,7 +127,7 @@ def fork_or_sync(
             org = g.get_organization(to_user)
             try:
                 fork = org.create_fork(retrived_from_repo)
-                return ("forked", retrived_from_repo, fork)
+                return ("forked", retrived_from_repo, fork)  # noqa: TRY300
             except Exception as e:
                 warning(f"Failed to fork {from_repo} to {to_location}: {e}")
                 sleep_until_reset(g)
@@ -169,7 +169,7 @@ def user_clone(
         source_user = g.get_user(user)
     except UnknownObjectException:
         warning(f"User or organization `{user}` not found; skipping")
-        return ("ignore", None, None)
+        return
     rich_print(f"Cloning from {source_user.login}")
     repositories = []
     for repo in track(source_user.get_repos(), description="Fetching repositories..."):
@@ -177,16 +177,16 @@ def user_clone(
     rich_print(f"Found {len(repositories)} repositories")
     repos = filter_repos(repositories, include_private, include_forks, include_dot_github)
     filtered_repos = []
-    for repo in repos:
-        if repo[0] != "keep":
-            rich_print(f"{repo[0]}: {repo[1].full_name}")
+    for kind, repo in repos:
+        if kind != "keep":
+            rich_print(f"{kind}: {repo.full_name}")
         else:
-            filtered_repos.append(repo[1])
+            filtered_repos.append(repo)
     n_repos = len(filtered_repos)
     rich_print(f"Filtered to {n_repos} repositories")
     random.shuffle(filtered_repos)
     for i, repo in enumerate(filtered_repos):
-        kind, old_repo, new_repo = fork_or_sync(repo.full_name, to_location, syncing, dry_run, branch=None)  # type: ignore  # noqa: PGH003
+        kind, old_repo, new_repo = fork_or_sync(repo.full_name, to_location, syncing, dry_run, branch=None)
         rich_print(f"{i + 1} of {n_repos}. {kind}: {old_repo} -> {new_repo}")
         maybe_sleep(g, kind, dry_run)
         if include_issues and not dry_run:
@@ -253,9 +253,11 @@ def main(
             kind, old_repo, new_repo = fork_or_sync(frommy, to, sync, dry_run, branch=None)
             rich_print(f"{kind}: {old_repo} -> {new_repo}")
             maybe_sleep(g, kind, dry_run)
-            if include_issues and kind == "forked" and not dry_run:
+            if new_repo and include_issues and kind == "forked" and not dry_run:
                 set_has_issues(new_repo, True)
                 frommy_repo = get_repo(frommy)
+                if not frommy_repo:
+                    raise RepositoryNotFoundException(frommy)
                 issues = frommy_repo.get_issues(state="all")
                 for issue in issues:
                     process_issue(issue, frommy_repo, new_repo)

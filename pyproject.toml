@@ -118,5 +118,8 @@ skip_empty = true
 branch = true
 source = ["src"]
 
+[tool.deptry]
+ignore = ["DEP003"]
+
 [project.scripts]
 superfork = "superfork.fork:main"

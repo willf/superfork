@@ -6,7 +6,7 @@ def create_markdown_links(file_path: str, output_path: str) -> None:
     repo_pattern = re.compile(r'Repository\(full_name="([^"]+)"\) -> Repository\(full_name="([^"]+)"\)')
 
     # Read the file and create Markdown links
-    with open(file_path, "r") as file, open(output_path, "w") as output_file:
+    with open(file_path) as file, open(output_path, "w") as output_file:
         current_org = None
         output_file.write("# Repository Links\n")
         for line in file:

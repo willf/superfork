@@ -1,10 +1,9 @@
-from github import Issue, Repository, Github
+from github import Issue, Repository
 
 from superfork.comment import process_comments
 from superfork.utils import (
     create_repo_replace_function,
     create_source_function,
-    maybe_sleep,
     replace_at_mentions,
     text_pipeline,
 )

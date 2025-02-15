@@ -1,9 +1,9 @@
 from superfork.utils import (
-    text_pipeline,
-    replace_references,
-    replace_at_mentions,
     create_repo_replace_function,
     create_source_function,
+    replace_at_mentions,
+    replace_references,
+    text_pipeline,
 )
 
 
