@@ -187,7 +187,8 @@ def user_clone(
     for i, repo in enumerate(filtered_repos):
         kind, old_repo, new_repo = fork_or_sync(repo.full_name, to_location, syncing, dry_run, branch=None)
         rich_print(f"{i + 1} of {n_repos}. {kind}: {old_repo} -> {new_repo}")
-        maybe_sleep(g, kind, dry_run)
+        if i + 1 != n_repos:
+            maybe_sleep(g, kind, dry_run)
         if include_issues and not dry_run:
             rich_print("TODO: clone issues")
 
