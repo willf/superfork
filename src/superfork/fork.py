@@ -9,7 +9,6 @@ from github import Auth, AuthenticatedUser, Github, Repository, UnknownObjectExc
 from rich import print as rich_print
 from rich.progress import track
 
-from superfork.issue import process_issue
 from superfork.utils import maybe_sleep, sleep_until_reset, warning
 
 
@@ -260,8 +259,8 @@ def main(
                     raise RepositoryNotFoundException(frommy)
                 issues = frommy_repo.get_issues(state="all")
                 for issue in issues:
-                    process_issue(issue, frommy_repo, new_repo)
-                    # rich_print(f"TODO: transfer{issue}")
+                    # process_issue(issue, frommy_repo, new_repo)
+                    rich_print(f"TODO: transfer{issue}")
         else:
             user_clone(frommy, to, include_issues, include_private, include_forks, include_dot_github, sync, dry_run)
 
