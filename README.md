@@ -41,8 +41,8 @@ uv run superfork mona willf willf2 willf/superfork
 Currently, you need to run the command from the repo directory
 
 ```bash
-cd superfork
-uv run superfork --help
+$ cd superfork
+$ uv run superfork --help
 $ uv run superfork --help
 Usage: superfork [OPTIONS] TO [SOURCE]...
 
