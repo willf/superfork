@@ -182,11 +182,12 @@ def user_clone(
             rich_print(f"{repo[0]}: {repo[1].full_name}")
         else:
             filtered_repos.append(repo[1])
-    rich_print(f"Filtered to {len(filtered_repos)} repositories")
+    n_repos = len(filtered_repos)
+    rich_print(f"Filtered to {n_repos} repositories")
     random.shuffle(filtered_repos)
-    for repo in filtered_repos:
+    for i, repo in enumerate(filtered_repos):
         kind, old_repo, new_repo = fork_or_sync(repo.full_name, to_location, syncing, dry_run, branch=None)  # type: ignore  # noqa: PGH003
-        rich_print(f"{kind}: {old_repo} -> {new_repo}")
+        rich_print(f"{i + 1} of {n_repos}. {kind}: {old_repo} -> {new_repo}")
         maybe_sleep(g, kind, dry_run)
         if include_issues and not dry_run:
             rich_print("TODO: clone issues")
