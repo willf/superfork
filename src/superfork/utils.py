@@ -20,7 +20,7 @@ def sleep(seconds: int) -> None:
         time.sleep(1)
 
 
-def maybe_sleep(g: Github, action: str, dry_run: bool) -> None:
+def maybe_sleep(g: Github, action: str, dry_run: bool, without_sleeping: bool) -> None:
     rl = g.get_rate_limit()
     retry_after = int(rl.raw_headers.get("retry-after", -1))
     # convert reset to number of seconds remaining between now and reset
@@ -31,7 +31,7 @@ def maybe_sleep(g: Github, action: str, dry_run: bool) -> None:
         sleep(retry_after)
     elif rl.core.remaining < 10:
         sleep(sleep_time)
-    elif action == "forked" and not dry_run:
+    elif action == "forked" and not dry_run and not without_sleeping:
         sleep(30)
 
 

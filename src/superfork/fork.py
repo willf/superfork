@@ -162,6 +162,7 @@ def user_clone(
     include_dot_github: bool = False,
     syncing: bool = True,
     dry_run: bool = False,
+    without_sleeping: bool = False,
 ) -> None:
     g = get_github()
     try:
@@ -188,7 +189,7 @@ def user_clone(
         kind, old_repo, new_repo = fork_or_sync(repo.full_name, to_location, syncing, dry_run, branch=None)
         rich_print(f"{i + 1} of {n_repos}. {kind}: {old_repo} -> {new_repo}")
         if i + 1 != n_repos:
-            maybe_sleep(g, kind, dry_run)
+            maybe_sleep(g, kind, dry_run, without_sleeping)
         if include_issues and not dry_run:
             rich_print("TODO: clone issues")
 
@@ -225,6 +226,13 @@ def user_clone(
     show_default=True,
     help="Don't actually do anything, but check status of repositories",
 )
+@click.option(
+    "--without-sleeping",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Don't sleep between requests",
+)
 @click.argument("to")
 @click.argument("source", nargs=-1)
 def main(
@@ -236,6 +244,7 @@ def main(
     include_forks: bool,
     include_dot_github: bool,
     dry_run: bool,
+    without_sleeping: bool = False,
 ) -> None:
     """
     [TO]: destination user or organization\n
@@ -252,7 +261,8 @@ def main(
         if "/" in frommy:
             kind, old_repo, new_repo = fork_or_sync(frommy, to, sync, dry_run, branch=None)
             rich_print(f"{kind}: {old_repo} -> {new_repo}")
-            maybe_sleep(g, kind, dry_run)
+            if not without_sleeping:
+                maybe_sleep(g, kind, dry_run, without_sleeping)
             if new_repo and include_issues and kind == "forked" and not dry_run:
                 set_has_issues(new_repo, True)
                 frommy_repo = get_repo(frommy)
@@ -263,7 +273,17 @@ def main(
                     # process_issue(issue, frommy_repo, new_repo)
                     rich_print(f"TODO: transfer{issue}")
         else:
-            user_clone(frommy, to, include_issues, include_private, include_forks, include_dot_github, sync, dry_run)
+            user_clone(
+                frommy,
+                to,
+                include_issues,
+                include_private,
+                include_forks,
+                include_dot_github,
+                sync,
+                dry_run,
+                without_sleeping,
+            )
 
 
 if __name__ == "__main__":

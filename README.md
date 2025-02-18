@@ -43,6 +43,9 @@ THe command has the following options:
 - `--include-forks`: Include repositories which were originally forked (default: don't include)
 - `--include-dot-github`: Include .github repository if found (default: don't include)
 - `--dry-run`: Don't actually do anything, but check status of repositories
+- `--without-sleeping`: Don't sleep between requests (default: sleep 30 seconds between fork requests)
+
+Only use `--without-sleeping` if you just have a few forks to do, otherwise you may hit GitHub (undocumented) API limits.
 
 ## Installation
 
@@ -72,8 +75,8 @@ Options:
   --include-private     Include private repositories
   --include-forks       Include repositories which were originally forked
   --include-dot-github  Include .github repository if found
-  --dry-run             Don't actually do anything, but check status of
-                        repositories
+  --dry-run             Don't actually do anything, but check status of repositories
+  --without-sleeping    Don't sleep between requests
   --help                Show this message and exit.
 
 #
