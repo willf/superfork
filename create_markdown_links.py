@@ -3,7 +3,7 @@ import re
 
 def create_markdown_links(file_path: str, output_path: str) -> None:
     # Regular expression to match the repository names
-    repo_pattern = re.compile(r'Repository\(full_name="([^"]+)"\) -> Repository\(full_name="([^"]+)"\)')
+    repo_pattern = re.compile(r'.*Repository\(full_name="([^"]+)"\) -> Repository\(full_name="([^"]+)"\)')
 
     # Read the file and create Markdown links
     with open(file_path) as file, open(output_path, "w") as output_file:
