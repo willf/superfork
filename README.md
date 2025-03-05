@@ -1,6 +1,5 @@
 # superfork
 
-[![Release](https://img.shields.io/github/v/release/willf/superfork)](https://img.shields.io/github/v/release/willf/superfork)
 [![Build status](https://img.shields.io/github/actions/workflow/status/willf/superfork/main.yml?branch=main)](https://github.com/willf/superfork/actions/workflows/main.yml?query=branch%3Amain)
 [![License](https://img.shields.io/github/license/willf/superfork)](https://img.shields.io/github/license/willf/superfork)
 
