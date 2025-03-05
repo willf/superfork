@@ -1,6 +1,6 @@
 [project]
 name = "superfork"
-version = "0.0.3"
+version = "0.0.4"
 description = "Fork or sync a repo, or clone a user or org on GitHub to GitHub"
 authors = [{ name = "Will Fitzgerald", email = "will.fitzgerald@pobox.com" }]
 readme = "README.md"
