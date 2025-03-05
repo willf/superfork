@@ -1,10 +1,11 @@
 import contextlib
 import re
 import time
+from collections.abc import Iterator
 from functools import reduce
-from typing import Callable
+from typing import Callable, Never
 
-from github import Github, RateLimitExceededException, GithubException
+from github import Github, GithubException, RateLimitExceededException
 from rich.console import Console
 from rich.progress import track
 
@@ -14,7 +15,7 @@ def warning(msg: str) -> None:
     console.print(f"[yellow]:warning: Warning: {msg}[/yellow]")
 
 
-def sleep(seconds: int, message="Waiting") -> None:
+def sleep(seconds: int, message: str = "Waiting") -> None:
     if seconds <= 0:
         return
     for _ in track(range(seconds), description=message):
@@ -22,7 +23,7 @@ def sleep(seconds: int, message="Waiting") -> None:
 
 
 @contextlib.contextmanager
-def graceful_calling(g: Github, fn: Callable, is_mutating: int, max_tries: int = 3) -> None:
+def graceful_calling(g: Github, fn: Callable, is_mutating: int, max_tries: int = 3) -> Iterator[Never]:
     for i in range(max_tries):
         if i > 0:
             print(f"Retrying {i + 1} of {max_tries}")
@@ -34,9 +35,11 @@ def graceful_calling(g: Github, fn: Callable, is_mutating: int, max_tries: int =
             break
         except (RateLimitExceededException, GithubException) as e:
             print(f"Error: {e}")
-            print(f"headers: {e.headers}")
-            retry_after = int(e.headers.get("Retry-After", -1))
-            reset_unix_time = int(e.headers.get("X-RateLimit-Reset", -1))
+            retry_after = -1
+            reset_unix_time = -1
+            if e.headers:
+                retry_after = int(e.headers.get("Retry-After", -1))
+                reset_unix_time = int(e.headers.get("X-RateLimit-Reset", -1))
             if retry_after > 0:
                 sleep(retry_after, message="Rate limit exceeded; retry after")
             elif reset_unix_time > 0:

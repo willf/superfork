@@ -9,7 +9,6 @@ from github import Auth, AuthenticatedUser, Github, Repository, UnknownObjectExc
 from rich import print as rich_print
 from rich.progress import track
 
-from superfork.issue import process_issue
 from superfork.utils import graceful_calling, warning
 
 
@@ -222,7 +221,6 @@ def main(
 
     To get a GITHUB_TOKEN, see https://docs.github.com/en/authentication
     """
-    g = get_github()
     for frommy in source:
         if "/" in frommy:
             kind, old_repo, new_repo = fork_or_sync(frommy, to, sync, dry_run, branch=None)

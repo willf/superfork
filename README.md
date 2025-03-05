@@ -36,7 +36,6 @@ Note: To avoid overwhelming GitHub (and thus hitting API limits), this program w
 
 THe command has the following options:
 
-- `--include-issues`: Include issues and comments (not working yet)
 - `--sync`: Sync when repository already exists (default)
 - `--no-sync`: Don't sync when repository already exists
 - `--include-private`: Include private repositories (of course, you need to be able to _access_ the private repos)
@@ -70,7 +69,6 @@ Usage: superfork [OPTIONS] TO [SOURCE]...
   To get a GITHUB_TOKEN, see https://docs.github.com/en/authentication
 
 Options:
-  --include-issues      Include issues, pull requests, and comments
   --sync / --no-sync    Sync when repository already exists  [default: sync]
   --include-private     Include private repositories
   --include-forks       Include repositories which were originally forked
