@@ -9,7 +9,8 @@ from github import Auth, AuthenticatedUser, Github, Repository, UnknownObjectExc
 from rich import print as rich_print
 from rich.progress import track
 
-from superfork.utils import maybe_sleep, sleep_until_reset, warning
+from superfork.issue import process_issue
+from superfork.utils import graceful_calling, warning
 
 
 def get_repo(nwo: str, g: Optional[Github] = None) -> Optional[Repository.Repository]:
@@ -21,7 +22,7 @@ def get_repo(nwo: str, g: Optional[Github] = None) -> Optional[Repository.Reposi
         return None
 
 
-def sync(repo: Repository.Repository, branch: Optional[str] = None) -> dict:
+def sync(g: Github, repo: Repository.Repository, branch: Optional[str] = None) -> dict:
     """
     :calls: `POST /repos/{owner}/{repo}/merge-upstream <https://docs.github.com/en/rest/branches/branches#sync-a-fork-branch-with-the-upstream-repository>`_
     :param branch: string
@@ -31,21 +32,10 @@ def sync(repo: Repository.Repository, branch: Optional[str] = None) -> dict:
     if not branch:
         branch = repo.default_branch
     post_parameters = {"branch": branch}
-    headers, data = repo._requester.requestJsonAndCheck("POST", f"{repo.url}/merge-upstream", input=post_parameters)
-    return dict(data)
-
-
-def set_has_issues(repo: Repository.Repository, has_issues: bool) -> None:
-    """
-    :calls: `PATCH /repos/{owner}/{repo} <https://docs.github.com/en/rest/reference/repos#update-a-repository>`_
-    :param has_issues: bool
-    :rtype: None
-    :raises: :class:`GithubException`
-    """
-    patch_parameters = {"has_issues": has_issues}
-    headers, data = repo._requester.requestJsonAndCheck("PATCH", repo.url, input=patch_parameters)
-    rich_print(headers, data)
-    return None
+    fn = lambda: repo._requester.requestJsonAndCheck("POST", f"{repo.url}/merge-upstream", input=post_parameters)
+    with graceful_calling(g, fn, is_mutating=1):
+        headers, data = fn()
+        return dict(data)
 
 
 class RepositoryNotFoundException(Exception):
@@ -106,7 +96,7 @@ def fork_or_sync(
         if dry_run:
             return ("already exists (dry-run)", retrived_from_repo, retrieve_to_location)
         if syncing:
-            sync(retrieve_to_location, branch)
+            sync(g, retrieve_to_location, branch)
             return ("synced", retrived_from_repo, retrieve_to_location)
         else:
             return ("exists", retrived_from_repo, retrieve_to_location)
@@ -114,23 +104,15 @@ def fork_or_sync(
         if dry_run:
             return ("would be forked (dry-run)", retrived_from_repo, None)
         if to_user == user_name:
-            try:
-                fork = user.create_fork(retrived_from_repo)
-                return ("forked", retrived_from_repo, fork)  # noqa: TRY300
-            except Exception as e:
-                warning(f"Failed to fork {from_repo} to {to_location}: {e}")
-                sleep_until_reset(g)
-                fork = user.create_fork(retrived_from_repo)
+            fn = lambda: user.create_fork(retrived_from_repo)
+            with graceful_calling(g, fn, is_mutating=30):
+                fork = fn()
                 return ("forked", retrived_from_repo, fork)
         else:
             org = g.get_organization(to_user)
-            try:
-                fork = org.create_fork(retrived_from_repo)
-                return ("forked", retrived_from_repo, fork)  # noqa: TRY300
-            except Exception as e:
-                warning(f"Failed to fork {from_repo} to {to_location}: {e}")
-                sleep_until_reset(g)
-                fork = org.create_fork(retrived_from_repo)
+            fn = lambda: org.create_fork(retrived_from_repo)
+            with graceful_calling(g, fn, is_mutating=30):
+                fork = fn()
                 return ("forked", retrived_from_repo, fork)
 
 
@@ -156,7 +138,6 @@ def filter_repos(
 def user_clone(
     user: str,
     to_location: str,
-    include_issues: bool = False,
     include_private: bool = True,
     include_forks: bool = False,
     include_dot_github: bool = False,
@@ -188,23 +169,9 @@ def user_clone(
     for i, repo in enumerate(filtered_repos):
         kind, old_repo, new_repo = fork_or_sync(repo.full_name, to_location, syncing, dry_run, branch=None)
         rich_print(f"{i + 1} of {n_repos}. {kind}: {old_repo} -> {new_repo}")
-        if i + 1 != n_repos:
-            maybe_sleep(g, kind, dry_run, without_sleeping)
-        if include_issues and not dry_run:
-            rich_print("TODO: clone issues")
 
 
-# I want a command line interface for this code
-# super-clone --include-private --include-forks --include-dot-github <to> <from>+
-# use click for the cli
 @click.command()
-@click.option(
-    "--include-issues",
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="Include issues, pull requests, and comments",
-)
 @click.option(
     "--sync/--no-sync", is_flag=True, default=True, show_default=True, help="Sync when repository already exists"
 )
@@ -239,7 +206,6 @@ def main(
     to: str,
     source: str,
     sync: bool,
-    include_issues: bool,
     include_private: bool,
     include_forks: bool,
     include_dot_github: bool,
@@ -261,22 +227,10 @@ def main(
         if "/" in frommy:
             kind, old_repo, new_repo = fork_or_sync(frommy, to, sync, dry_run, branch=None)
             rich_print(f"{kind}: {old_repo} -> {new_repo}")
-            if not without_sleeping:
-                maybe_sleep(g, kind, dry_run, without_sleeping)
-            if new_repo and include_issues and kind == "forked" and not dry_run:
-                set_has_issues(new_repo, True)
-                frommy_repo = get_repo(frommy)
-                if not frommy_repo:
-                    raise RepositoryNotFoundException(frommy)
-                issues = frommy_repo.get_issues(state="all")
-                for issue in issues:
-                    # process_issue(issue, frommy_repo, new_repo)
-                    rich_print(f"TODO: transfer{issue}")
         else:
             user_clone(
                 frommy,
                 to,
-                include_issues,
                 include_private,
                 include_forks,
                 include_dot_github,

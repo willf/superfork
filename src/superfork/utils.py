@@ -1,9 +1,10 @@
+import contextlib
 import re
 import time
 from functools import reduce
 from typing import Callable
 
-from github import Github
+from github import Github, RateLimitExceededException, GithubException
 from rich.console import Console
 from rich.progress import track
 
@@ -13,34 +14,38 @@ def warning(msg: str) -> None:
     console.print(f"[yellow]:warning: Warning: {msg}[/yellow]")
 
 
-def sleep(seconds: int) -> None:
+def sleep(seconds: int, message="Waiting") -> None:
     if seconds <= 0:
         return
-    for _ in track(range(seconds), description="Waiting..."):
+    for _ in track(range(seconds), description=message):
         time.sleep(1)
 
 
-def maybe_sleep(g: Github, action: str, dry_run: bool, without_sleeping: bool) -> None:
-    rl = g.get_rate_limit()
-    retry_after = int(rl.raw_headers.get("retry-after", -1))
-    # convert reset to number of seconds remaining between now and reset
-    current_unix_time = time.time()
-    reset_unix_time = int(rl.raw_headers["x-ratelimit-reset"])
-    sleep_time = int(reset_unix_time - current_unix_time)
-    if retry_after > 0:
-        sleep(retry_after)
-    elif rl.core.remaining < 10:
-        sleep(sleep_time)
-    elif action == "forked" and not dry_run and not without_sleeping:
-        sleep(30)
-
-
-def sleep_until_reset(g: Github) -> None:
-    rl = g.get_rate_limit()
-    current_unix_time = time.time()
-    reset_unix_time = int(rl.raw_headers["x-ratelimit-reset"])
-    sleep_time = int(reset_unix_time - current_unix_time)
-    sleep(sleep_time)
+@contextlib.contextmanager
+def graceful_calling(g: Github, fn: Callable, is_mutating: int, max_tries: int = 3) -> None:
+    for i in range(max_tries):
+        if i > 0:
+            print(f"Retrying {i + 1} of {max_tries}")
+        try:
+            result = fn()
+            if is_mutating:
+                sleep(is_mutating, message="A slight pause after a mutating call")
+            yield result
+            break
+        except (RateLimitExceededException, GithubException) as e:
+            print(f"Error: {e}")
+            print(f"headers: {e.headers}")
+            retry_after = int(e.headers.get("Retry-After", -1))
+            reset_unix_time = int(e.headers.get("X-RateLimit-Reset", -1))
+            if retry_after > 0:
+                sleep(retry_after, message="Rate limit exceeded; retry after")
+            elif reset_unix_time > 0:
+                sleep_time = int(reset_unix_time - time.time())
+                sleep(sleep_time, message="Rate limit exceeded; waiting until reset")
+            else:
+                # exponential backoff, starting at 2**4 = 16 seconds
+                n = i + 4
+                sleep(2**n, message="Error, backing off")
 
 
 USER_NAME_REGEX = re.compile(r"@[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}", re.IGNORECASE)
