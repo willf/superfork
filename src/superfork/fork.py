@@ -21,18 +21,19 @@ def get_repo(nwo: str, g: Optional[Github] = None) -> Optional[Repository.Reposi
         return None
 
 
-def sync(g: Github, repo: Repository.Repository, branch: Optional[str] = None) -> dict:
+def sync(g: Github, repo: Repository.Repository, without_sleeping: bool, branch: Optional[str] = None) -> dict:
     """
     :calls: `POST /repos/{owner}/{repo}/merge-upstream <https://docs.github.com/en/rest/branches/branches#sync-a-fork-branch-with-the-upstream-repository>`_
     :param branch: string
     :rtype: :class: dict
     :raises: :class:`GithubException` for error status codes
     """
+    sleep_time = 0 if without_sleeping else 1
     if not branch:
         branch = repo.default_branch
     post_parameters = {"branch": branch}
     fn = lambda: repo._requester.requestJsonAndCheck("POST", f"{repo.url}/merge-upstream", input=post_parameters)
-    with graceful_calling(g, fn, is_mutating=1):
+    with graceful_calling(g, fn, is_mutating=sleep_time):
         headers, data = fn()
         return dict(data)
 
@@ -74,7 +75,7 @@ def get_authed_user(g: Optional[Github] = None, token: Optional[str] = None) -> 
 
 
 def fork_or_sync(
-    from_repo: str, to_location: str, syncing: bool, dry_run: bool, branch: Optional[str] = None
+    from_repo: str, to_location: str, syncing: bool, dry_run: bool, without_sleeping: bool, branch: Optional[str] = None
 ) -> tuple[str, Repository.Repository, Optional[Repository.Repository]]:
     """ """
     (from_user, from_name) = from_repo.split("/")
@@ -84,6 +85,7 @@ def fork_or_sync(
         to_location = "/".join([to_user, from_name])
     else:
         warning("igorning destination repository name")
+    sleep_time = 0 if without_sleeping else 30
     g = get_github()
     user = get_authed_user(g)
     user_name = user.login
@@ -95,7 +97,7 @@ def fork_or_sync(
         if dry_run:
             return ("already exists (dry-run)", retrived_from_repo, retrieve_to_location)
         if syncing:
-            sync(g, retrieve_to_location, branch)
+            sync(g, retrieve_to_location, without_sleeping, branch)
             return ("synced", retrived_from_repo, retrieve_to_location)
         else:
             return ("exists", retrived_from_repo, retrieve_to_location)
@@ -104,13 +106,13 @@ def fork_or_sync(
             return ("would be forked (dry-run)", retrived_from_repo, None)
         if to_user == user_name:
             fn = lambda: user.create_fork(retrived_from_repo)
-            with graceful_calling(g, fn, is_mutating=30):
+            with graceful_calling(g, fn, is_mutating=sleep_time):
                 fork = fn()
                 return ("forked", retrived_from_repo, fork)
         else:
             org = g.get_organization(to_user)
             fn = lambda: org.create_fork(retrived_from_repo)
-            with graceful_calling(g, fn, is_mutating=30):
+            with graceful_calling(g, fn, is_mutating=sleep_time):
                 fork = fn()
                 return ("forked", retrived_from_repo, fork)
 
@@ -166,7 +168,9 @@ def user_clone(
     rich_print(f"Filtered to {n_repos} repositories")
     random.shuffle(filtered_repos)
     for i, repo in enumerate(filtered_repos):
-        kind, old_repo, new_repo = fork_or_sync(repo.full_name, to_location, syncing, dry_run, branch=None)
+        kind, old_repo, new_repo = fork_or_sync(
+            repo.full_name, to_location, syncing, dry_run, without_sleeping, branch=None
+        )
         rich_print(f"{i + 1} of {n_repos}. {kind}: {old_repo} -> {new_repo}")
 
 
@@ -223,7 +227,7 @@ def main(
     """
     for frommy in source:
         if "/" in frommy:
-            kind, old_repo, new_repo = fork_or_sync(frommy, to, sync, dry_run, branch=None)
+            kind, old_repo, new_repo = fork_or_sync(frommy, to, sync, dry_run, without_sleeping, branch=None)
             rich_print(f"{kind}: {old_repo} -> {new_repo}")
         else:
             user_clone(
